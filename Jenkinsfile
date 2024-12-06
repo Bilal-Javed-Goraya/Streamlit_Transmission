@@ -1,41 +1,27 @@
 pipeline {
     agent any
-    
+
     environment {
-        // Define environment variables
-        PROJECT_DIR = "/var/lib/jenkins/workspace/streamlit-app"
-        REQUIREMENTS_FILE = "$PROJECT_DIR/requirements.txt"
+        DOCKER_IMAGE = 'streamlit-app'
     }
 
     stages {
-        stage('Checkout') {
-            steps {
-                // Pull code from the Git repository
-                checkout scm
-            }
-        }
-
         stage('Build Docker Image') {
             steps {
                 script {
-                    // Build Docker image for the Streamlit app
-                    echo 'Building Docker image for Streamlit app...'
-                    sh '''
-                        docker build -t streamlit-app .
-                    '''
+                    // Build the Docker image from the Dockerfile
+                    docker.build(DOCKER_IMAGE)
                 }
             }
         }
 
-        stage('Run Tests (optional)') {
+        stage('Push to Docker Hub') {
             steps {
                 script {
-                    // Run your tests if any
-                    // Assuming you're using pytest, otherwise skip this stage
-                    echo 'Running tests (optional)...'
-                    sh '''
-                        docker run --rm streamlit-app pytest
-                    '''
+                    // Authenticate with Docker Hub and push the image
+                    docker.withRegistry('https://index.docker.io/v1/', 'dockerhub-credentials') {
+                        docker.image(DOCKER_IMAGE).push()
+                    }
                 }
             }
         }
@@ -43,26 +29,18 @@ pipeline {
         stage('Deploy to Server') {
             steps {
                 script {
-                    // Deployment stage (run your Docker image on a remote server)
-                    echo 'Deploying Streamlit app...'
-                    sh '''
-                        # Assuming you have SSH access to the server and Docker installed
-                        ssh user@your-server "
-                            cd /path/to/streamlit-app && 
-                            docker pull streamlit-app && 
-                            docker run -d -p 8501:8501 streamlit-app"
-                    '''
+                    // Pull the Docker image on the deployment server and run it
+                    sh 'docker pull docker.io/streamlit-app'
+                    sh 'docker run -d -p 8501:8501 --name streamlit-app docker.io/streamlit-app'
                 }
             }
         }
     }
 
     post {
-        success {
-            echo "Pipeline executed successfully!"
-        }
-        failure {
-            echo "Pipeline failed!"
+        always {
+            // Clean up any resources if necessary (e.g., remove containers/images)
+            cleanWs()
         }
     }
 }

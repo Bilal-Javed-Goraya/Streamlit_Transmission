@@ -1,6 +1,9 @@
 # Use an official Python runtime as the base image
 FROM python:3.10.14-slim
 
+# Install python3-venv for virtual environments
+RUN apt-get update && apt-get install -y python3.10-venv
+
 # Set the working directory in the container
 WORKDIR /app
 

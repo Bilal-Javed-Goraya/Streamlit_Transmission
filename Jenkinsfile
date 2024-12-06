@@ -1,16 +1,24 @@
 pipeline {
     agent any
-
     environment {
-        DOCKER_IMAGE = 'streamlit-app'
+        // Declare the Docker Hub credentials, replacing 'dockerhub-credentials' with the ID you set in Jenkins
+        DOCKER_CREDENTIALS = credentials('dockerhub-credentials')
     }
-
     stages {
-        stage('Build Docker Image') {
+        stage('Checkout') {
+            steps {
+                checkout scm  // This checks out your code from the repository
+            }
+        }
+        
+        stage('Build') {
             steps {
                 script {
-                    // Build the Docker image from the Dockerfile
-                    docker.build(DOCKER_IMAGE)
+                    // Using Docker registry credentials to interact with Docker Hub
+                    docker.withRegistry('https://index.docker.io/v1/', 'dockerhub-credentials') {
+                        // Build your Docker image here
+                        def customImage = docker.build("your-image-name:${env.BUILD_ID}")
+                    }
                 }
             }
         }
@@ -18,29 +26,21 @@ pipeline {
         stage('Push to Docker Hub') {
             steps {
                 script {
-                    // Authenticate with Docker Hub and push the image
+                    // Pushing the built Docker image to Docker Hub
                     docker.withRegistry('https://index.docker.io/v1/', 'dockerhub-credentials') {
-                        docker.image(DOCKER_IMAGE).push()
+                        docker.image("your-image-name:${env.BUILD_ID}").push()
                     }
                 }
             }
         }
 
-        stage('Deploy to Server') {
-            steps {
-                script {
-                    // Pull the Docker image on the deployment server and run it
-                    sh 'docker pull docker.io/streamlit-app'
-                    sh 'docker run -d -p 8501:8501 --name streamlit-app docker.io/streamlit-app'
-                }
-            }
-        }
+        // Additional stages can go here like Test, Deploy, etc.
     }
-
     post {
         always {
-            // Clean up any resources if necessary (e.g., remove containers/images)
-            cleanWs()
+            // Clean up Docker images or perform other necessary post-actions
+            echo 'Cleaning up Docker images...'
+            sh 'docker system prune -f'
         }
     }
 }

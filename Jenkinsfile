@@ -1,24 +1,17 @@
 pipeline {
     agent any
+    
     environment {
-        // Declare the Docker Hub credentials, replacing 'dockerhub-credentials' with the ID you set in Jenkins
-        DOCKER_CREDENTIALS = credentials('dockerhub-credentials')
+        IMAGE_NAME = 'streamlit_workout'
+        IMAGE_TAG = 'latest' // You can change the tag as needed (e.g., 1.0, 2.0, etc.)
     }
+
     stages {
-        stage('Checkout') {
-            steps {
-                checkout scm  // This checks out your code from the repository
-            }
-        }
-        
-        stage('Build') {
+        stage('Build Docker Image') {
             steps {
                 script {
-                    // Using Docker registry credentials to interact with Docker Hub
-                    docker.withRegistry('https://index.docker.io/v1/', 'dockerhub-credentials') {
-                        // Build your Docker image here
-                        def customImage = docker.build("your-image-name:${env.BUILD_ID}")
-                    }
+                    // Build Docker image
+                    sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
                 }
             }
         }
@@ -26,20 +19,26 @@ pipeline {
         stage('Push to Docker Hub') {
             steps {
                 script {
-                    // Pushing the built Docker image to Docker Hub
-                    docker.withRegistry('https://index.docker.io/v1/', 'dockerhub-credentials') {
-                        docker.image("your-image-name:${env.BUILD_ID}").push()
+                    // Login to Docker Hub using Jenkins credentials
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        // Login to Docker Hub
+                        sh "docker login -u $DOCKER_USER -p $DOCKER_PASS"
+                        
+                        // Tag the image with the Docker Hub repository name
+                        sh "docker tag $IMAGE_NAME:$IMAGE_TAG bilal625/$IMAGE_NAME:$IMAGE_TAG"
+                        
+                        // Push the image to Docker Hub
+                        sh "docker push bilal625/$IMAGE_NAME:$IMAGE_TAG"
                     }
                 }
             }
         }
-
-        // Additional stages can go here like Test, Deploy, etc.
     }
+
     post {
         always {
-            // Clean up Docker images or perform other necessary post-actions
-            echo 'Cleaning up Docker images...'
+            // Clean up Docker images and other resources after the pipeline finishes
+            echo "Cleaning up Docker images..."
             sh 'docker system prune -f'
         }
     }
